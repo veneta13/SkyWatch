@@ -37,14 +37,14 @@ def write_picture(sqs_messages):
     pic_uuid = str(uuid.uuid4())
     pic_path = f'/tmp/{pic_uuid}.jpg'
 
-    encoded_image = base64.b64decode(
+    decoded_image = base64.b64decode(
         json.loads(
             sqs_messages['Messages'][0]['Body']
         )['encoded_img']
     )
 
     with open(pic_path, 'wb') as f:
-        f.write(encoded_image)
+        f.write(decoded_image)
 
     return pic_uuid, pic_path
 
@@ -138,7 +138,7 @@ def lambda_handler(event, context):
 
     if "Messages" in sqs_messages:
         pic_uuid, pic_path = write_picture(sqs_messages)
-        is_person, rekognition_labels = detect_person()
+        is_person, rekognition_labels = detect_person(pic_path)
 
         if is_person:
             saved_pic_path = pic_path.replace("/tmp/", "people/")
