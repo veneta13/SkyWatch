@@ -33,6 +33,22 @@ def delete_message(receipt_handle):
     )
 
 
+def write_picture(sqs_messages):
+    pic_uuid = str(uuid.uuid4())
+    pic_path = f'/tmp/{pic_uuid}.jpg'
+
+    encoded_image = base64.b64decode(
+        json.loads(
+            sqs_messages['Messages'][0]['Body']
+        )['encoded_img']
+    )
+
+    with open(pic_path, 'wb') as f:
+        f.write(encoded_image)
+
+    return pic_uuid, pic_path
+
+
 def run_rekognition(pic_path):
     with open(pic_path, 'rb') as image:
         return boto3.client(
@@ -44,6 +60,19 @@ def run_rekognition(pic_path):
             },
             MaxLabels=10,
         )['Labels']
+
+
+def detect_person(pic_path):
+    rekognition_labels = run_rekognition(pic_path)
+
+    is_person = False
+    for label in rekognition_labels:
+        label_name = label['Name'].lower()
+        label_confidence = label['Confidence']
+
+        if label_name in ['human', 'person'] and label_confidence >= 90:
+            is_person = True
+    return is_person, rekognition_labels
 
 
 def add_to_dynamoDB(pic_uuid, labels, pic_path):
@@ -108,29 +137,11 @@ def lambda_handler(event, context):
     sqs_messages = get_messages()
 
     if "Messages" in sqs_messages:
-        pic_uuid = str(uuid.uuid4())
-        pic_path = f'/tmp/{pic_uuid}.jpg'
+        pic_uuid, pic_path = write_picture(sqs_messages)
+        is_person, rekognition_labels = detect_person()
 
-        message_body = base64.b64decode(
-            json.loads(
-                sqs_messages['Messages'][0]['Body']
-            )['pic_bytes']
-        )
-
-        with open(pic_path, 'wb') as f:
-            f.write(message_body)
-
-        rekognition_labels = run_rekognition(pic_path)
-
-        is_human = False
-        for label in rekognition_labels:
-            if label['Name'].lower() in ['human', 'person'] \
-                    and label['Confidence'] >= 90:
-                is_human = True
-
-        if is_human:
+        if is_person:
             saved_pic_path = pic_path.replace("/tmp/", "people/")
-
             add_to_dynamoDB(
                 pic_uuid=pic_uuid,
                 pic_path=saved_pic_path,
@@ -143,7 +154,6 @@ def lambda_handler(event, context):
             publish_to_topic(
                 saved_pic_path
             )
-
         delete_message(sqs_messages['Messages'][0]['ReceiptHandle'])
     else:
-        print("Waiting for events...")
+        print("No pictures in queue")
