@@ -1,0 +1,7 @@
+ENDPOINT = ""
+CLIENT_ID = "esp32"
+PATH_TO_CERTIFICATE = "../connection-kit/esp32.cert.pem"
+PATH_TO_PRIVATE_KEY = "../connection-kit/esp32.private.key"
+PATH_TO_AMAZON_ROOT_CA_1 = "../connection-kit/AmazonRootCA1.pem"
+TOPIC = ""
+CAMERA_URL = ""
